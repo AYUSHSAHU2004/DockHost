@@ -17,7 +17,7 @@
     "node": ">=18"
   },
   "workspaces": [
-   "frontend",
+   "client3",
   "api",
   "hub",
   "validator",
