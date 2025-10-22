@@ -7,7 +7,7 @@ const Domain = require('./models/DomainInfo');
 require("./config/db").connect();
 
 const jwt = require('jsonwebtoken');
-const secretKey = process.env.GOOGLE_CLIENT_SECRET;  // store securely, e.g., env variable
+const secretKey = process.env.JWT_SECRET;  // store securely, e.g., env variable
 const app = express();
 const router = require("./routes/payement-routes");
 const authRoutes = require('./routes/authRoutes');
@@ -135,44 +135,73 @@ app.get('/get-current-domains-by-email', async (req, res) => {
 
 
 app.get('/get-Bdomains-by-email', async (req, res) => {
+  console.log("=== START REQUEST ===");
+  console.log("1. Query params:", req.query);
+  console.log("2. Headers:", req.headers);
+  
   try {
     // 1. Get token from Authorization header
     const authHeader = req.headers['authorization'];
-    if (!authHeader)
+    console.log("3. Authorization header:", authHeader);
+    
+    if (!authHeader) {
+      console.log("4. ERROR: Authorization header missing");
       return res.status(401).json({ message: 'Authorization header missing' });
+    }
 
     const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Token missing' });
+    console.log("5. Extracted token:", token);
+    
+    if (!token) {
+      console.log("6. ERROR: Token missing after split");
+      return res.status(401).json({ message: 'Token missing' });
+    }
 
     // 2. Verify token and decode payload
     let decoded;
     try {
       decoded = jwt.verify(token, secretKey);
+      console.log("7. Decoded token payload:", decoded);
     } catch (err) {
+      console.log("8. ERROR: Token verification failed:", err.message);
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 
-    // 3. Extract email from token payload (assumes email is in token)
+    // 3. Extract email from token payload
     const email = decoded.email;
-    if (!email) return res.status(400).json({ message: 'Email not found in token' });
+    console.log("9. Email from decoded token:", email);
+    
+    if (!email) {
+      console.log("10. ERROR: Email not found in token payload");
+      return res.status(400).json({ message: 'Email not found in token' });
+    }
 
-    // 4. Query database with this email (ignore email query param!)
+    // 4. Query database with this email
+    console.log("11. Querying database for email:", email);
     const domains = await BuyedDomain.find({ email });
+    console.log("12. Domains found in database:", domains);
+    console.log("13. Number of domains:", domains ? domains.length : 0);
 
     if (!domains || domains.length === 0) {
+      console.log("14. No domains found for user");
       return res.status(404).json({ message: 'No domains found for the user' });
     }
 
     // 5. Respond with domain names
     const domainNames = domains.map(domain => domain.name);
+    console.log("15. Domain names to return:", domainNames);
+    
+    console.log("16. Sending success response");
     return res.status(200).json({ status: 'success', names: domainNames });
 
   } catch (error) {
-    console.error('Error fetching domains by email:', error);
+    console.error('17. CATCH BLOCK ERROR:', error);
+    console.error('Error stack:', error.stack);
     return res.status(500).json({ message: 'Internal server error' });
+  } finally {
+    console.log("=== END REQUEST ===\n");
   }
 });
-
 
 
 // Take a domain temporarily

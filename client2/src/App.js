@@ -22,16 +22,28 @@ function App() {
   const loadBlockchainData = async () => {
     const provider = new ethers.providers.Web3Provider(window.ethereum)
     setProvider(provider)
-
+    
     const network = await provider.getNetwork()
+         console.log("=== DEBUGGING ===")
+    console.log("1. Config object:", config)
+    console.log("2. Network object:", network)
+    console.log("3. Network Chain ID:", network.chainId)
+    console.log("4. Config for this network:", config[network.chainId])
     const ethDaddy = new ethers.Contract(config[network.chainId].ETHDaddy.address, ETHDaddy, provider)
     setETHDaddy(ethDaddy)
 
+    console.log("5. ETHDaddy from config:", config[network.chainId]?.ETHDaddy)
+    console.log("6. Contract address:", config[network.chainId]?.ETHDaddy?.address)
+    console.log("7. ETHDaddy ABI:", ETHDaddy)
+    console.log("8. Provider:", provider)
+    console.log("=================")
     const maxSupply = await ethDaddy.maxSupply()
     const domains = []
+    
 
     for (var i = 1; i <= maxSupply; i++) {
       const domain = await ethDaddy.getDomain(i)
+      console.log(domain);
       domains.push(domain)
     }
 

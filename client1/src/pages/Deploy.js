@@ -75,9 +75,16 @@ const Deploy = () => {
   useEffect(() => {
     // Get user_email from localStorage
     const userEmail = JSON.parse(localStorage.getItem("user-info")).email;
+        const token = JSON.parse(localStorage.getItem("user-info")).token;
+
     setUserEmail(userEmail);
     // Fetch Buyed Domains
-    fetch(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`)
+    fetch(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`,{
+      headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,  // pass JWT token here
+  },
+    })
       .then((response) => response.json())
       .then((data) => setBuyedDomains(data.names))
       .catch((err) => console.error("Error fetching Buyed Domains:", err));

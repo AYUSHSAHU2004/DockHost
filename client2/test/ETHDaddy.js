@@ -17,7 +17,7 @@ describe("ETHDaddy", () => {
 
     // Deploy contract
     const ETHDaddy = await ethers.getContractFactory("ETHDaddy")
-    ethDaddy = await ETHDaddy.deploy(NAME, SYMBOL)
+    ethDaddy = await ETHDaddy.connect(deployer).deploy(NAME, SYMBOL)
 
     // List a domain
     const transaction = await ethDaddy.connect(deployer).list("jack.eth", tokens(10))
@@ -37,6 +37,7 @@ describe("ETHDaddy", () => {
 
     it("Sets the owner", async () => {
       const result = await ethDaddy.owner()
+      console.log(result)
       expect(result).to.equal(deployer.address)
     })
 

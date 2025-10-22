@@ -12,13 +12,13 @@ const Navigation = ({ account, setAccount }) => {
     <nav>
       <div className='nav__brand'>
         <img src={logo} alt="Logo" />
-        <h1>ETH Daddy</h1>
+        <h1>Dock Host</h1>
 
         <ul className='nav__links'>
-          <li><a href="/">Domain Names</a></li>
+          {/* <li><a href="/">Domain Names</a></li>
           <li><a href="/">Websites & Hosting</a></li>
           <li><a href="/">Commerce</a></li>
-          <li><a href="/">Email & Marketing</a></li>
+          <li><a href="/">Email & Marketing</a></li> */}
         </ul>
       </div>
 
