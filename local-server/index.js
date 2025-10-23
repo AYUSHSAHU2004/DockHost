@@ -1,5 +1,7 @@
 const express = require('express');
 const { exec } = require('child_process');
+// import prismaClient  from "../packages/db/src/index.js";
+const {prismaClient} = require("../packages/db/src/index.js");
 const cors = require("cors");
 const bodyParser = require('body-parser');
 const BuyedDomain = require("./models/BuyedDomain");
@@ -89,6 +91,86 @@ app.post('/buy-domain', async (req, res) => {
         console.error('Error buying domain:', error);
         return res.status(500).json({ message: 'Internal server error.' });
     }
+});
+
+app.get("/api/v1/websites", async (req, res) => {
+  console.log("=== START /api/v1/websites REQUEST ===");
+  console.log("Headers:", req.headers);
+
+  try {
+    // 1️⃣ Get Authorization header
+    const authHeader = req.headers["authorization"];
+    if (!authHeader) {
+      console.log("❌ Authorization header missing");
+      return res.status(401).json({ message: "Authorization header missing" });
+    }
+
+    // 2️⃣ Extract token
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+      console.log("❌ Token missing");
+      return res.status(401).json({ message: "Token missing" });
+    }
+
+    // 3️⃣ Verify token
+    let decoded;
+
+    try {
+     console.log("sk: ",secretKey);
+      decoded = jwt.verify(token, secretKey);
+      console.log("✅ Decoded token:", decoded);
+    } catch (err) {
+      console.log("❌ Token verification failed:", err.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    // 4️⃣ Extract userId from decoded payload
+    const userId = decoded.email;
+    if (!userId) {
+        console.log("❌ userId not found in token");
+        return res.status(400).json({ message: "userId not found in token" });
+    }
+    console.log("userId : ", userId);
+
+    // 5️⃣ Fetch websites for that user
+    const websites = await prismaClient.website.findMany({
+      where: {
+        userId,
+        disabled: false,
+      },
+      include: {
+        ticks: true,
+      },
+    });
+
+    console.log("✅ Found websites:", websites?.length);
+
+    // 6️⃣ Return response
+    res.json({ websites });
+  } catch (error) {
+    console.error("❌ Unexpected Error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  } finally {
+    console.log("=== END REQUEST ===\n");
+  }
+});
+
+app.get("/api/v1/website", async (req, res) => {
+    const {userId} = req.body;
+
+    const websites = await prismaClient.website.findMany({
+        where: {
+            userId,
+            disabled: false
+        },
+        include: {
+            ticks: true
+        }
+    });
+
+    res.json({
+        websites
+    });
 });
 
 // Get all current domains by email

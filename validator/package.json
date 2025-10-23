@@ -1,5 +1,5 @@
 {
-  "name": "hub",
+  "name": "validator",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
+    "dotenv": "^17.2.3",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "ws": "^8.18.3"

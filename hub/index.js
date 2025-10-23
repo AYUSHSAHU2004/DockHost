@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 // import { IncomingMessage } from "common/types";
-import { prismaClient } from "db/client";
+import prismaClient  from "../packages/db/src/index.js";
 import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";

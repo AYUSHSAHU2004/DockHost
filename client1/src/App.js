@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import Deploy from "./pages/Deploy";
+import Status from "./pages1/WebsiteStatus";
 import { BrowserRouter } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import RefrshHandler from './RefreshHandler';
@@ -17,10 +18,12 @@ function App() {
     minHeight: '100vh',  // Full viewport height
     display: 'flex',
     flexDirection: 'column',
+    color:"black",
   };
 
   const mainStyle = {
     flexGrow: 1,
+        color:"black",
     backgroundColor: 'white', // Default background color
     transition: 'background-color 0.3s ease', // Smooth transition for dark mode change
   };
@@ -51,6 +54,7 @@ function App() {
           <Route path="/login" element={<GoogleWrapper />} />
 				  <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/dashboard" element={<Home/>} />
+          <Route path="/Status" element={<Status/>} />
           <Route path="/deploy" element={<Deploy/>} />
         </Routes>
       </BrowserRouter>

@@ -1,19 +1,19 @@
 {
-  "name": "hub",
+  "name": "server3",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-    "type": "module",
-
+  "type": "module",
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
-    "tweetnacl": "^1.0.3",
-    "tweetnacl-util": "^0.15.1",
-    "ws": "^8.18.3"
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
   }
 }
