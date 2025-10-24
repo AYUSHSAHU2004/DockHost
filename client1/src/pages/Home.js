@@ -358,6 +358,36 @@ const Home = () => {
         >
           Log Out
         </button>
+<div style={{ marginTop: "20px", textAlign: "center" }}>
+  <button
+    onClick={() => navigate("/Status")}
+    style={{
+      padding: "10px",
+      backgroundColor: "#17a2b8",
+      color: "#fff",
+      border: "none",
+      borderRadius: "5px",
+      cursor: "pointer",
+      marginRight: "10px",
+    }}
+  >
+    checkStatus
+  </button>
+  <button
+    onClick={() => window.location.href = "http://localhost:3001/"}
+    style={{
+      padding: "10px",
+      backgroundColor: "#6f42c1",
+      color: "#fff",
+      border: "none",
+      borderRadius: "5px",
+      cursor: "pointer",
+    }}
+  >
+    ownEth
+  </button>
+</div>
+
       </div>
       
       

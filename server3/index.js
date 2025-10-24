@@ -188,13 +188,12 @@ app.get("/api/v1/websites", async (req, res) => {
 });
 
 
-app.delete("/api/v1/website/", authMiddleware, async (req, res) => {
-    const websiteId = req.body.websiteId;
-    const userId = req.userId;
+app.delete("/api/v1/website/", async (req, res) => {
+    const {userId,websiteId }= req.body;
 
     await prismaClient.website.update({
         where: {
-            id: websiteId,
+            url: websiteId,
             userId
         },
         data: {
