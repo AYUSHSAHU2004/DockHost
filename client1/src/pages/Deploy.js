@@ -11,17 +11,31 @@ const Deploy = () => {
     githubUrl: "",
     buildCommand: "",
     staticFolder: "",
+    domainName: "",  // add this
   });
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form Submitted", formData);
-    alert("Form Submitted Successfully!");
+
+    console.log("formData:", formData);
+
+    try {
+      const response = await api.post('http://localhost:8002/deploy', {
+        GIT_REPO_URL: formData.githubUrl,
+        PROJECT_ID: formData.domainName,
+        BUILD_COMMAND: formData.buildCommand,
+        FILE_LOCATION: formData.staticFolder,
+      });
+
+      alert("Deployment Successful! " + response.data.message);
+    } catch (err) {
+      console.error("Deployment failed:", err);
+      alert("Deployment Failed: " + err.response?.data?.error || err.message);
+    }
   };
 
   const styles = {
@@ -89,7 +103,10 @@ const Deploy = () => {
         },
         withCredentials: true,
       })
-      .then((response) => setBuyedDomains(response.data.names))
+      .then((response) => {
+        setBuyedDomains(response.data.names);
+        setFormData(prev => ({ ...prev, domainName: response.data.names[0] })); // add this
+      })
       .catch((err) => console.error("Error fetching Buyed Domains:", err));
 
     // Fetch Temporary Domains
@@ -119,7 +136,7 @@ const Deploy = () => {
         }}
       >
         <h2 style={{ textAlign: "center", marginBottom: "20px" }}>
-          Buyed Domains
+          Buyed SubDomains
         </h2>
         {buyedDomains?.length > 0 ? (
           <ul style={{ listStyleType: "none", padding: 0 }}>
@@ -151,7 +168,7 @@ const Deploy = () => {
             marginBottom: "20px",
           }}
         >
-          Temporary Domains
+          Temporary SubDomains
         </h2>
         {temporaryDomains?.length > 0 ? (
           <ul style={{ listStyleType: "none", padding: 0 }}>
@@ -172,7 +189,7 @@ const Deploy = () => {
           </ul>
         ) : (
           <p style={{ textAlign: "center", color: "#888" }}>
-            No Temporary Domains Found
+            No Temporary SubDomains Found
           </p>
         )}
       </div>

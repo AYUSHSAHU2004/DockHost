@@ -59,6 +59,32 @@ app.use("/subscribe", subscribeRoutes);
 app.use("/refresh", refreshRoutes);
 // Buy a domain
 // Buy a domain with additional check in DomainInfo
+
+app.post('/deploy', async (req, res) => {
+    const { GIT_REPO_URL, PROJECT_ID, BUILD_COMMAND, FILE_LOCATION } = req.body;
+
+    if (!GIT_REPO_URL || !PROJECT_ID || !BUILD_COMMAND || !FILE_LOCATION) {
+        return res.status(400).json({ error: 'GIT_REPO_URL, PROJECT_ID, BUILD_COMMAND and FILE_LOCATION are required' });
+    }
+
+    const command = `docker run --rm \
+        -e GIT_REPO_URL="${GIT_REPO_URL}" \
+        -e PROJECT_ID="${PROJECT_ID}" \
+        -e BUILD_COMMAND="${BUILD_COMMAND}" \
+        -e FILE_LOCATION="${FILE_LOCATION}" \
+        -e RG="${process.env.RG}" \
+        -e AK="${process.env.AK}" \
+        -e SAK="${process.env.SAK}" \
+        website-dist-builder`;
+
+    exec(command, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Error: ${error.message}`);
+            return res.status(500).json({ error: error.message, stderr });
+        }
+        res.json({ message: 'Deployment successful', stdout });
+    });
+});
 app.post('/buy-domain', async (req, res) => {
     const { domainName, userEmail } = req.body;
 

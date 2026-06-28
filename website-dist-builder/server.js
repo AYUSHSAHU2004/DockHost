@@ -11,10 +11,10 @@ const PROJECT_ID = process.env.PROJECT_ID;
 const BUILD_COMMAND = process.env.BUILD_COMMAND;
 const FILE_LOCATION = process.env.FILE_LOCATION;
 const s3Client = new S3Client({
-    region:process.env.RG,
+    region: process.env.RG,
     credentials: {
-        accessKeyId:process.env.AK,
-        secretAccessKey:process.env.SAK
+        accessKeyId: process.env.AK,
+        secretAccessKey: process.env.SAK
     }
 });
 
@@ -40,7 +40,7 @@ async function build() {
         }
 
         console.log("BUILD COMPLETE");
-        const distPath = path.join(__dirname, 'output',`${FILE_LOCATION}` ); 
+        const distPath = path.join(__dirname, 'output', `${FILE_LOCATION}`);
         const distFolderContents = fs.readdirSync(distPath, { recursive: true });
 
         try {
@@ -49,7 +49,7 @@ async function build() {
                 if (fs.lstatSync(filePath).isDirectory()) continue;
 
                 const command = new PutObjectCommand({
-                    Bucket: 'host-my-domain', 
+                    Bucket: 'dockhost',
                     Key: `__outputs/${PROJECT_ID}/${file}`,
                     Body: fs.createReadStream(filePath),
                     ContentType: mime.lookup(filePath)
@@ -59,7 +59,7 @@ async function build() {
                 console.log(`Uploaded to S3`);
             }
             console.log("All files uploaded to S3. Stopping the container.");
-            process.exit(0); 
+            process.exit(0);
         } catch (err) {
             console.error("Error during S3 upload:", err);
             process.exit(1); // Exit with an error code if upload fails

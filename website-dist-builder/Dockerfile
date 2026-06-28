@@ -19,5 +19,6 @@ RUN npm install
 
 RUN chmod +x entry.sh
 # RUN chmod +x server.js
+RUN sed -i 's/\r//' entry.sh   
 
 ENTRYPOINT [ "/home/app/entry.sh" ]
