@@ -44,7 +44,7 @@ const Home = () => {
 
       if (data && data.id) {
         const paymentObject = new (window).Razorpay({
-          key: process.env.REACT_APP_RAZORPAY_KEY_ID,
+          key: "rzp_test_T6KK8OUwOYTJN3",
           order_id: data.id,
           ...data,
 
