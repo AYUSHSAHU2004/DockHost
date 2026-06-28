@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../api/axiosInstance";
 
 const Deploy = () => {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ const Deploy = () => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Form Submitted", formData);
@@ -75,27 +76,34 @@ const Deploy = () => {
   useEffect(() => {
     // Get user_email from localStorage
     const userEmail = JSON.parse(localStorage.getItem("user-info")).email;
-        const token = JSON.parse(localStorage.getItem("user-info")).token;
+    const token = JSON.parse(localStorage.getItem("user-info")).token;
 
     setUserEmail(userEmail);
+    console.log(token);
     // Fetch Buyed Domains
-    fetch(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`,{
-      headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,  // pass JWT token here
-  },
-    })
-      .then((response) => response.json())
-      .then((data) => setBuyedDomains(data.names))
+    api
+      .get(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        withCredentials: true,
+      })
+      .then((response) => setBuyedDomains(response.data.names))
       .catch((err) => console.error("Error fetching Buyed Domains:", err));
 
     // Fetch Temporary Domains
-    fetch(
-      `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`
-    )
-      .then((response) => response.json())
-      .then((data) => setTemporaryDomains(data.currentDomains))
-      .catch((err) => console.error("Error fetching Temporary Domains:", err));
+    api
+      .get(
+        `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`,
+        {
+          withCredentials: true,
+        }
+      )
+      .then((response) => setTemporaryDomains(response.data.currentDomains))
+      .catch((err) =>
+        console.error("Error fetching Temporary Domains:", err)
+      );
   }, []);
 
   return (

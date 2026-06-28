@@ -1,16 +1,19 @@
 {
   "dependencies": {
+    "amqplib": "^2.0.1",
     "axios": "^1.7.9",
     "body-parser": "^1.20.3",
     "child_process": "^1.0.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "googleapis": "^144.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.3",
-    "nodemon": "^3.1.9",
-    "razorpay": "^2.9.5"
+    "nodemon": "^3.1.14",
+    "razorpay": "^2.9.5",
+    "socket.io": "^4.8.3"
   }
 }

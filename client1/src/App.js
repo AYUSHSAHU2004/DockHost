@@ -18,12 +18,12 @@ function App() {
     minHeight: '100vh',  // Full viewport height
     display: 'flex',
     flexDirection: 'column',
-    color:"black",
+    color: "black",
   };
 
   const mainStyle = {
     flexGrow: 1,
-        color:"black",
+    color: "black",
     backgroundColor: 'white', // Default background color
     transition: 'background-color 0.3s ease', // Smooth transition for dark mode change
   };
@@ -36,28 +36,28 @@ function App() {
     mainStyle.color = 'white';  // Text color in dark mode
   }
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-	const GoogleWrapper = ()=>(
-		<GoogleOAuthProvider clientId='894943633236-va774o3le7vcavpb8vt79jvn0a61qjbk.apps.googleusercontent.com'>
-			<GoogleLogin></GoogleLogin>
-		</GoogleOAuthProvider>
-	)
-	const PrivateRoute = ({ element }) => {
-		return isAuthenticated ? element : <Navigate to="/login" />
-	}
+  const GoogleWrapper = () => (
+    <GoogleOAuthProvider clientId="894943633236-va774o3le7vcavpb8vt79jvn0a61qjbk.apps.googleusercontent.com">
+      <GoogleLogin></GoogleLogin>
+    </GoogleOAuthProvider>
+  )
+  const PrivateRoute = ({ element }) => {
+    return isAuthenticated ? element : <Navigate to="/login" />
+  }
 
   return (
     <div style={appStyle}>
       <div style={mainStyle}>
-      <BrowserRouter>
-      <RefrshHandler setIsAuthenticated={setIsAuthenticated} />
-        <Routes>
-          <Route path="/login" element={<GoogleWrapper />} />
-				  <Route path="/" element={<Navigate to="/login" />} />
-          <Route path="/dashboard" element={<Home/>} />
-          <Route path="/Status" element={<Status/>} />
-          <Route path="/deploy" element={<Deploy/>} />
-        </Routes>
-      </BrowserRouter>
+        <BrowserRouter>
+          <RefrshHandler setIsAuthenticated={setIsAuthenticated} />
+          <Routes>
+            <Route path="/login" element={<GoogleWrapper />} />
+            <Route path="/" element={<Navigate to="/login" />} />
+            <Route path="/dashboard" element={<Home />} />
+            <Route path="/Status" element={<Status />} />
+            <Route path="/deploy" element={<Deploy />} />
+          </Routes>
+        </BrowserRouter>
       </div>
       <Footer />
     </div>

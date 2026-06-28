@@ -3,14 +3,15 @@ const BuyedDomain = require("../models/BuyedDomain");
 const Domain = require("../models/DomainInfo");
 const razorPayInstance = createRazorpayInstance();
 const crypto = require("crypto");
-exports.createOrder = async (req,res) => {
+exports.createOrder = async (req, res) => {
     const price = 10;
     const options = {
-        amount:price*100,
-        currency:"INR",
-        receipt:"receipt_order_1",
+        amount: price * 100,
+        currency: "INR",
+        receipt: "receipt_order_1",
+
     }
-    try{
+    try {
         razorPayInstance.orders.create(options, (err, order) => {
             if (err) {
                 console.log("Error during order creation:", err);  // Log the error
@@ -22,25 +23,25 @@ exports.createOrder = async (req,res) => {
             return res.status(200).json(order);
         });
 
-    }catch(error){
+    } catch (error) {
         return res.status(500).json({
-            success:false,
-            message:err,
+            success: false,
+            message: err,
         })
     }
 }
 
-exports.verifyPayment = async(req,res) => {
-    const {order_id,payment_id,signature,domainName,userEmail} = req.body;
-    const secreat = process.env.key_secret;
-    const hmac = crypto.createHmac("sha256",secreat);
+exports.verifyPayment = async (req, res) => {
+    const { order_id, payment_id, signature, domainName, userEmail } = req.body;
+    const secreat = process.env.RAZORPAY_KEY_SECRET;
+    const hmac = crypto.createHmac("sha256", secreat);
     hmac.update(order_id + "|" + payment_id);
     const generatedSignature = hmac.digest("hex");
-    if(generatedSignature === signature){
+    if (generatedSignature === signature) {
         if (!domainName || !userEmail) {
             return res.status(400).json({ message: 'Domain name and user email are required.' });
         }
-    
+
         try {
             // Step 1: Check if the domain is already bought
             const buyedDomain = await BuyedDomain.findOne({ name: domainName });
@@ -50,7 +51,7 @@ exports.verifyPayment = async(req,res) => {
                     message: 'The SubDomain is already bought by someone else.',
                 });
             }
-    
+
             // Step 2: Check if the domain is in DomainInfo as currentDomain
             const domainInfo = await Domain.findOne({ currentDomain: domainName });
             if (domainInfo) {
@@ -67,14 +68,14 @@ exports.verifyPayment = async(req,res) => {
                     );
                 }
             }
-    
+
             // Step 3: Insert into BuyedDomain
             const newBuyedDomain = new BuyedDomain({
                 name: domainName,
                 email: userEmail,
             });
             await newBuyedDomain.save();
-    
+
             // Step 4: Insert into Domain as permanent
             const newDomain = new Domain({
                 email: userEmail,
@@ -82,7 +83,7 @@ exports.verifyPayment = async(req,res) => {
                 currentDomain: domainName,
             });
             await newDomain.save();
-    
+
             return res.status(200).json({
                 status: 'success',
                 message: 'SubDomain successfully bought!',
@@ -95,10 +96,10 @@ exports.verifyPayment = async(req,res) => {
         //     success:true,
         //     message:"Payment verified now",
         // })
-    }else{
+    } else {
         return res.status(400).json({
-            success:false,
-            message:"Payement not verified",
+            success: false,
+            message: "Payement not verified",
         })
     }
 

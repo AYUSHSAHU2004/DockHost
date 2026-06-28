@@ -1,23 +1,46 @@
+require('dotenv').config();  // 👈 MUST be first line
+require("./config/db").connect();
+
 const express = require('express');
 const { exec } = require('child_process');
 // import prismaClient  from "../packages/db/src/index.js";
-const {prismaClient} = require("../packages/db/src/index.js");
+const { startConsumer } = require("./rabbitmq/consumer");
+const { prismaClient } = require("../packages/db/src/index.js");
+const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const bodyParser = require('body-parser');
 const BuyedDomain = require("./models/BuyedDomain");
 const Domain = require('./models/DomainInfo');
-require("./config/db").connect();
+
+const { connectRabbitMQ } = require("./rabbitmq/connection");
+const { initialize } = require("./socket/socketManager");
+
 
 const jwt = require('jsonwebtoken');
 const secretKey = process.env.JWT_SECRET;  // store securely, e.g., env variable
 const app = express();
+const http = require("http");
+const server = http.createServer(app);
+app.use(cookieParser());
+const { Server } = require("socket.io");
 const router = require("./routes/payement-routes");
 const authRoutes = require('./routes/authRoutes');
+const subscribeRoutes = require("./routes/subscribeRoutes");
+const refreshRoutes = require("./routes/refreshRoutes");
+const registerSocket = require("./socket/socketHandler");
 
 app.use(express.json());
-app.use(cors());
-
-require('dotenv').config();
+app.use(cors({
+    origin: "http://localhost:3000",
+    credentials: true
+}));
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true
+    }
+});
 
 
 
@@ -28,10 +51,12 @@ const DOCKER_IMAGE = 'ayushsahu049/builder-image12345'; // Docker image name
 
 // Middleware to parse JSON request bodies
 
-app.use('/api',router);
+app.use('/api', router);
 app.use('/auth/', authRoutes); // <- NEW LINE
 
+app.use("/subscribe", subscribeRoutes);
 
+app.use("/refresh", refreshRoutes);
 // Buy a domain
 // Buy a domain with additional check in DomainInfo
 app.post('/buy-domain', async (req, res) => {
@@ -94,69 +119,69 @@ app.post('/buy-domain', async (req, res) => {
 });
 
 app.get("/api/v1/websites", async (req, res) => {
-  console.log("=== START /api/v1/websites REQUEST ===");
-  console.log("Headers:", req.headers);
-
-  try {
-    // 1️⃣ Get Authorization header
-    const authHeader = req.headers["authorization"];
-    if (!authHeader) {
-      console.log("❌ Authorization header missing");
-      return res.status(401).json({ message: "Authorization header missing" });
-    }
-
-    // 2️⃣ Extract token
-    const token = authHeader.split(" ")[1];
-    if (!token) {
-      console.log("❌ Token missing");
-      return res.status(401).json({ message: "Token missing" });
-    }
-
-    // 3️⃣ Verify token
-    let decoded;
+    console.log("=== START /api/v1/websites REQUEST ===");
+    console.log("Headers:", req.headers);
 
     try {
-     console.log("sk: ",secretKey);
-      decoded = jwt.verify(token, secretKey);
-      console.log("✅ Decoded token:", decoded);
-    } catch (err) {
-      console.log("❌ Token verification failed:", err.message);
-      return res.status(401).json({ message: "Invalid or expired token" });
+        // 1️⃣ Get Authorization header
+        const authHeader = req.headers["authorization"];
+        if (!authHeader) {
+            console.log("❌ Authorization header missing");
+            return res.status(401).json({ message: "Authorization header missing" });
+        }
+
+        // 2️⃣ Extract token
+        const token = authHeader.split(" ")[1];
+        if (!token) {
+            console.log("❌ Token missing");
+            return res.status(401).json({ message: "Token missing" });
+        }
+
+        // 3️⃣ Verify token
+        let decoded;
+
+        try {
+            console.log("sk: ", secretKey);
+            decoded = jwt.verify(token, secretKey);
+            console.log("✅ Decoded token:", decoded);
+        } catch (err) {
+            console.log("❌ Token verification failed:", err.message);
+            return res.status(401).json({ message: "Invalid or expired token" });
+        }
+
+        // 4️⃣ Extract userId from decoded payload
+        const userId = decoded.email;
+        if (!userId) {
+            console.log("❌ userId not found in token");
+            return res.status(400).json({ message: "userId not found in token" });
+        }
+        console.log("userId : ", userId);
+
+        // 5️⃣ Fetch websites for that user
+        const websites = await prismaClient.website.findMany({
+            where: {
+                userId,
+                disabled: false,
+            },
+            include: {
+                ticks: true,
+            },
+        });
+
+        console.log("✅ Found websites:", websites?.length);
+
+        // 6️⃣ Return response
+        res.json({ websites });
+    } catch (error) {
+        console.error("❌ Unexpected Error:", error);
+        res.status(500).json({ message: "Internal server error" });
+    } finally {
+        console.log("=== END REQUEST ===\n");
     }
-
-    // 4️⃣ Extract userId from decoded payload
-    const userId = decoded.email;
-    if (!userId) {
-        console.log("❌ userId not found in token");
-        return res.status(400).json({ message: "userId not found in token" });
-    }
-    console.log("userId : ", userId);
-
-    // 5️⃣ Fetch websites for that user
-    const websites = await prismaClient.website.findMany({
-      where: {
-        userId,
-        disabled: false,
-      },
-      include: {
-        ticks: true,
-      },
-    });
-
-    console.log("✅ Found websites:", websites?.length);
-
-    // 6️⃣ Return response
-    res.json({ websites });
-  } catch (error) {
-    console.error("❌ Unexpected Error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  } finally {
-    console.log("=== END REQUEST ===\n");
-  }
 });
 
 app.get("/api/v1/website", async (req, res) => {
-    const {userId} = req.body;
+    const { userId } = req.body;
 
     const websites = await prismaClient.website.findMany({
         where: {
@@ -217,72 +242,74 @@ app.get('/get-current-domains-by-email', async (req, res) => {
 
 
 app.get('/get-Bdomains-by-email', async (req, res) => {
-  console.log("=== START REQUEST ===");
-  console.log("1. Query params:", req.query);
-  console.log("2. Headers:", req.headers);
-  
-  try {
-    // 1. Get token from Authorization header
-    const authHeader = req.headers['authorization'];
-    console.log("3. Authorization header:", authHeader);
-    
-    if (!authHeader) {
-      console.log("4. ERROR: Authorization header missing");
-      return res.status(401).json({ message: 'Authorization header missing' });
-    }
+    console.log("=== START REQUEST ===");
+    console.log("1. Query params:", req.query);
+    console.log("2. Headers:", req.headers);
 
-    const token = authHeader.split(' ')[1];
-    console.log("5. Extracted token:", token);
-    
-    if (!token) {
-      console.log("6. ERROR: Token missing after split");
-      return res.status(401).json({ message: 'Token missing' });
-    }
-
-    // 2. Verify token and decode payload
-    let decoded;
     try {
-      decoded = jwt.verify(token, secretKey);
-      console.log("7. Decoded token payload:", decoded);
-    } catch (err) {
-      console.log("8. ERROR: Token verification failed:", err.message);
-      return res.status(401).json({ message: 'Invalid or expired token' });
+        // 1. Get token from Authorization header
+        const authHeader = req.headers['authorization'];
+        console.log("3. Authorization header:", authHeader);
+
+        if (!authHeader) {
+            console.log("4. ERROR: Authorization header missing");
+            return res.status(401).json({ message: 'Authorization header missing' });
+        }
+
+        const token = authHeader.split(' ')[1];
+        console.log("5. Extracted token:", token);
+
+        if (!token) {
+            console.log("6. ERROR: Token missing after split");
+            return res.status(401).json({ message: 'Token missing' });
+        }
+
+        // 2. Verify token and decode payload
+        let decoded;
+        try {
+            decoded = jwt.verify(token, secretKey);
+            console.log("7. Decoded token payload:", decoded);
+        } catch (err) {
+            console.log("8. ERROR: Token verification failed:", err.message);
+            return res.status(401).json({ message: 'Invalid or expired token' });
+        }
+
+        // 3. Extract email from token payload
+        const email = decoded.email;
+        console.log("9. Email from decoded token:", email);
+
+        if (!email) {
+            console.log("10. ERROR: Email not found in token payload");
+            return res.status(400).json({ message: 'Email not found in token' });
+        }
+
+        // 4. Query database with this email
+        console.log("11. Querying database for email:", email);
+        const domains = await BuyedDomain.find({ email });
+        console.log("12. Domains found in database:", domains);
+        console.log("13. Number of domains:", domains ? domains.length : 0);
+
+        if (!domains || domains.length === 0) {
+            return res.status(200).json({
+                status: "success",
+                names: []
+            });
+        }
+
+        // 5. Respond with domain names
+        const domainNames = domains.map(domain => domain.name);
+        console.log("15. Domain names to return:", domainNames);
+
+        console.log("16. Sending success response");
+        return res.status(200).json({ status: 'success', names: domainNames });
+
+    } catch (error) {
+        console.error('17. CATCH BLOCK ERROR:', error);
+        console.error('Error stack:', error.stack);
+        return res.status(500).json({ message: 'Internal server error' });
+    } finally {
+        console.log("=== END REQUEST ===\n");
     }
-
-    // 3. Extract email from token payload
-    const email = decoded.email;
-    console.log("9. Email from decoded token:", email);
-    
-    if (!email) {
-      console.log("10. ERROR: Email not found in token payload");
-      return res.status(400).json({ message: 'Email not found in token' });
-    }
-
-    // 4. Query database with this email
-    console.log("11. Querying database for email:", email);
-    const domains = await BuyedDomain.find({ email });
-    console.log("12. Domains found in database:", domains);
-    console.log("13. Number of domains:", domains ? domains.length : 0);
-
-    if (!domains || domains.length === 0) {
-      console.log("14. No domains found for user");
-      return res.status(404).json({ message: 'No domains found for the user' });
-    }
-
-    // 5. Respond with domain names
-    const domainNames = domains.map(domain => domain.name);
-    console.log("15. Domain names to return:", domainNames);
-    
-    console.log("16. Sending success response");
-    return res.status(200).json({ status: 'success', names: domainNames });
-
-  } catch (error) {
-    console.error('17. CATCH BLOCK ERROR:', error);
-    console.error('Error stack:', error.stack);
-    return res.status(500).json({ message: 'Internal server error' });
-  } finally {
-    console.log("=== END REQUEST ===\n");
-  }
 });
 
 
@@ -404,60 +431,60 @@ const dockerLogin = () => {
 
 async function runContainer(req, res) {
     const { name: PROJECT_ID, githubUrl: GIT_REPO_URL, buildCommand: BUILD_COMMAND, staticFolder: FILE_LOCATION } = req.body;
-  
+
     // Validate input fields
     if (!PROJECT_ID || !GIT_REPO_URL || !BUILD_COMMAND || !FILE_LOCATION) {
-      return res.status(400).json({ error: 'PROJECT_ID, GIT_REPO_URL, BUILD_COMMAND, and FILE_LOCATION are required.' });
+        return res.status(400).json({ error: 'PROJECT_ID, GIT_REPO_URL, BUILD_COMMAND, and FILE_LOCATION are required.' });
     }
-  
+
     try {
-      // Check if the image exists locally
-      const imageExists = await checkImageExists('ayushsahu049/builder-image12345'); 
-  
-      if (!imageExists) {
-        try {
-          // Build the image locally if it doesn't exist
-          await buildDockerImage('Dockerfile', 'ayushsahu049/builder-image12345'); 
-        } catch (buildError) {
-          console.error('Error building Docker image:', buildError);
-          return res.status(500).json({ error: 'Failed to build Docker image', details: buildError.message });
+        // Check if the image exists locally
+        const imageExists = await checkImageExists('ayushsahu049/builder-image12345');
+
+        if (!imageExists) {
+            try {
+                // Build the image locally if it doesn't exist
+                await buildDockerImage('Dockerfile', 'ayushsahu049/builder-image12345');
+            } catch (buildError) {
+                console.error('Error building Docker image:', buildError);
+                return res.status(500).json({ error: 'Failed to build Docker image', details: buildError.message });
+            }
         }
-      }
-  
-      // ... (Rest of the code for Docker login and running the container)
+
+        // ... (Rest of the code for Docker login and running the container)
     } catch (error) {
-      console.error('Error execution:', error);
-      return res.status(500).json({ error: 'Server Error' });
+        console.error('Error execution:', error);
+        return res.status(500).json({ error: 'Server Error' });
     }
-  }
-  
-  // Helper function to check if the image exists locally
-  async function checkImageExists(image_name) {
+}
+
+// Helper function to check if the image exists locally
+async function checkImageExists(image_name) {
     try {
-      await exec(`docker image inspect ${image_name}`, { timeout: 1000 }); 
-      return true;
+        await exec(`docker image inspect ${image_name}`, { timeout: 1000 });
+        return true;
     } catch (error) {
-      if (error.code === 'ENOENT') { 
-        console.error("Docker command not found.");
+        if (error.code === 'ENOENT') {
+            console.error("Docker command not found.");
+            return false;
+        }
         return false;
-      }
-      return false; 
     }
-  }
-  
-  // Helper function to build the Docker image
-  async function buildDockerImage(dockerfilePath, imageName) {
+}
+
+// Helper function to build the Docker image
+async function buildDockerImage(dockerfilePath, imageName) {
     try {
-      await exec(`docker build -t ${imageName} .`, { cwd: path.dirname(dockerfilePath) }); 
+        await exec(`docker build -t ${imageName} .`, { cwd: path.dirname(dockerfilePath) });
     } catch (error) {
-      throw error; 
+        throw error;
     }
-  }
+}
 
 // POST endpoint to handle requests
 app.post('/run-container', runContainer);
 
-        // Step 6: Execute Docker command
+// Step 6: Execute Docker command
 //         exec(dockerCommand, (error, stdout, stderr) => {
 //             if (error) {
 //                 console.error(`Error: ${error.message}`);
@@ -477,8 +504,34 @@ app.post('/run-container', runContainer);
 // });
 
 
+const { sendUrlForValidation } = require("./rabbitmq/producer");
+
+app.post("/test", async (req, res) => {
+
+    await sendUrlForValidation(req.body.url);
+
+    res.json({
+        message: "Sent"
+    });
+
+});
+
 
 // Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-});
+async function startServer() {
+
+    await connectRabbitMQ();
+
+    initialize(io);
+
+    registerSocket(io);
+
+    await startConsumer();
+
+    server.listen(8002, () => {
+        console.log("Server running on port 8002");
+    });
+
+}
+
+startServer();

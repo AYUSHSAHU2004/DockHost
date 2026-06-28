@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
+import { io } from "socket.io-client";
 import './Status.css';
+import api from "../api/axiosInstance";
 
 const Status = () => {
   const [websites, setWebsites] = useState([]);
@@ -8,7 +10,7 @@ const Status = () => {
   const [urlInput, setUrlInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [tokens,setTokens] = useState(null);
+  const socketRef = useRef(null);
   // Get token from localStorage
   const getToken = () => {
     try {
@@ -23,95 +25,128 @@ const Status = () => {
 
   // Fetch websites data
   const fetchWebsites = async () => {
+
     const token = getToken();
-    
-    if (!token) {
-      setError("No authentication token found. Please login.");
-      setLoading(false);
-      return;
-    }
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/websites', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const { data } = await api.get(
+        "http://localhost:8002/subscribe",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
 
-      const data = await response.json();
-      setWebsites(data.websites || []);
-      setLastUpdated(new Date());
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching websites:", err);
-      setError("Failed to fetch websites. Please try again.");
-    } finally {
+      setWebsites(data.urls);
+
       setLoading(false);
+      setLastUpdated(new Date());
+
+    } catch (err) {
+
+
+      console.log(err);
+
+      setLoading(false);
+      setError("Failed to fetch websites");
+
     }
+
   };
 
   // Add new website
   const handleAddWebsite = async (e) => {
+
     e.preventDefault();
-    
-    if (!urlInput.trim()) {
-      alert("Please enter a valid URL");
-      return;
-    }
 
     const token = getToken();
-    
-    if (!token) {
-      setError("No authentication token found. Please login.");
-      return;
-    }
-
-    setSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:8080/api/v1/website', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+
+      await api.post(
+        "http://localhost:8002/subscribe",
+        {
+          url: urlInput,
         },
-        body: JSON.stringify({ url: urlInput }),
-      });
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          withCredentials: true,
+        }
+      );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      setUrlInput("");
 
-      // Clear input and refresh data
-      setUrlInput('');
       await fetchWebsites();
-      alert("Website added successfully!");
     } catch (err) {
-      console.error("Error adding website:", err);
-      alert("Failed to add website. Please try again.");
-    } finally {
-      setSubmitting(false);
+
+      console.log(err);
+
     }
+
   };
 
   // Setup interval for periodic fetching
   useEffect(() => {
-    // Fetch immediately on mount
+
     fetchWebsites();
 
-    // Setup interval for every 70 seconds
-    const interval = setInterval(() => {
-      fetchWebsites();
-    }, 70000);
+    const token = getToken();
 
-    // Cleanup interval on unmount
-    return () => clearInterval(interval);
+    socketRef.current = io(
+      "http://localhost:8002",
+      {
+        auth: {
+          token
+        }
+      }
+    );
+
+    socketRef.current.on("connect", () => {
+
+      console.log("Socket Connected");
+
+    });
+
+    socketRef.current.on(
+      "status-update",
+      (updatedWebsite) => {
+
+        console.log("Received Update:", updatedWebsite);
+
+        setWebsites(previous =>
+
+          previous.map(website =>
+
+            website._id === updatedWebsite._id
+              ? updatedWebsite
+              : website
+
+          )
+
+        );
+
+        setLastUpdated(new Date());
+
+      }
+    );
+
+    socketRef.current.on("disconnect", () => {
+
+      console.log("Socket Disconnected");
+
+    });
+
+    return () => {
+
+      socketRef.current.disconnect();
+
+    };
+
   }, []);
 
   // Format date
@@ -120,10 +155,6 @@ const Status = () => {
     return date.toLocaleTimeString();
   };
 
-  // Get status color
-  const getStatusColor = (status) => {
-    return status === 'Good' ? '#10b981' : '#ef4444';
-  };
 
   if (loading) {
     return (
@@ -156,8 +187,8 @@ const Status = () => {
             disabled={submitting}
             className="url-input"
           />
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={submitting}
             className="submit-button"
           >
@@ -181,54 +212,39 @@ const Status = () => {
       ) : (
         <div className="websites-grid">
           {websites.map((website) => (
-            <div key={website.id} className="website-card">
+            <div key={website._id} className="website-card">
               <div className="website-header">
                 <h2>{website.url}</h2>
-                {website.disabled && (
-                  <span className="disabled-badge">Disabled</span>
-                )}
+
+              </div>
+              <div className="website-details">
+
+                <p>
+
+                  <strong>Status :</strong>
+
+                  {website.message}
+
+                </p>
+
+                <p>
+
+                  <strong>Status Code :</strong>
+
+                  {website.statusCode}
+
+                </p>
+
+                <p>
+
+                  <strong>Alive :</strong>
+
+                  {website.alive ? "🟢 Online" : "🔴 Offline"}
+
+                </p>
+
               </div>
 
-              {website.ticks && website.ticks.length > 0 ? (
-                <div className="ticks-container">
-                  <table className="ticks-table">
-                    <thead>
-                      <tr>
-                        <th>Validator Location</th>
-                        <th>Status</th>
-                        <th>Latency (ms)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {website.ticks.map((tick) => (
-                        <tr key={tick.id}>
-                          <td className="location-cell">
-                            {tick.validator?.location || 'Unknown'}
-                          </td>
-                          <td>
-                            <span 
-                              className="status-badge"
-                              style={{ 
-                                backgroundColor: getStatusColor(tick.status),
-                                color: 'white'
-                              }}
-                            >
-                              {tick.status}
-                            </span>
-                          </td>
-                          <td className="latency-cell">
-                            {tick.latency.toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="no-ticks">
-                  <p>No monitoring data available yet.</p>
-                </div>
-              )}
             </div>
           ))}
         </div>

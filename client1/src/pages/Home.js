@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import api from "../api/axiosInstance";
 
 
 const Home = () => {
   const [buyedDomains, setBuyedDomains] = useState([]);
   const [temporaryDomains, setTemporaryDomains] = useState([]);
   const [domainName, setDomainName] = useState("");
-  const [userEmail,setUserEmail] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [responseMessage, setResponseMessage] = useState(null);
 
   const navigate = useNavigate();
@@ -16,80 +16,81 @@ const Home = () => {
     navigate("/deploy");
   };
 
-    const loadScript = (src) => {
-        return new Promise((resolve)=>{
-            const script = document.createElement('script');
-            script.src = src;
-            script.onload = () => {
-                resolve(true);
-            }
-            script.onerror = () =>{
-                resolve(false);
-            }
-            document.body.appendChild(script);
-        })
-    }
-    useEffect(()=>{
-        loadScript('https://checkout.razorpay.com/v1/checkout.js')
-    },[])
+  const loadScript = (src) => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => {
+        resolve(true);
+      }
+      script.onerror = () => {
+        resolve(false);
+      }
+      document.body.appendChild(script);
+    })
+  }
+  useEffect(() => {
+    loadScript('https://checkout.razorpay.com/v1/checkout.js')
+  }, [])
 
-    const onPayment = async (domainName, userEmail) => {
-        try {
-            const options = {
-                domainName: domainName,
-                userEmail: userEmail
+  const onPayment = async (domainName, userEmail) => {
+    try {
+      const { data } = await api.post(
+        "http://localhost:8002/api/createOrder",
+        { domainName, userEmail },
+        { withCredentials: true }
+      );
+      console.log(data);
+
+      if (data && data.id) {
+        const paymentObject = new (window).Razorpay({
+          key: "rzp_test_T6KK8OUwOYTJN3",
+          order_id: data.id,
+          ...data,
+
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [
+                    { method: "upi", flows: ["vpa"] }  // 👈 forces UPI ID input
+                  ]
+                }
+              },
+              sequence: ["block.upi"],
+              preferences: { show_default_blocks: true }
+            }
+          },
+
+          handler: async function (response) {
+            console.log('Payment Success:', response);
+
+            const options2 = {
+              order_id: response.razorpay_order_id,
+              payment_id: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+              domainName: domainName,
+              userEmail: userEmail,
             };
-            
-            // Fetch order data from the backend
-            const response = await fetch('http://localhost:8002/api/createOrder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ domainName, userEmail }),
-            });
-    
-            const data = await response.json();
-            console.log(data);
-    
-            if (data && data.id) {
-                const paymentObject = new (window).Razorpay({
-                    key: "rzp_test_nUv9rTe1QN2FVQ",  // Ensure this is your actual Razorpay key
-                    order_id: data.id,
-                    ...data,  // This includes the 'amount', 'currency', etc.
-    
-                    handler: async function (response) {
-                        console.log('Payment Success:', response);
-    
-                        const options2 = {
-                            order_id: response.razorpay_order_id,
-                            payment_id: response.razorpay_payment_id,
-                            signature: response.razorpay_signature,
-                            domainName:domainName,
-                            userEmail:userEmail,
-                        };
-    
-                        // Verify payment signature in the backend
-                        const response2 = await fetch('http://localhost:8002/api/verifyPayment', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(options2),
-                        });
-    
-                        const data2 = await response2.json();
-                        console.log('Payment Verification:', data2);
-    
-                        // Handle any further logic based on the payment verification response (e.g., show success message)
-                    },
-                });
-    
-                paymentObject.open();
-            } else {
-                console.log("Payment order not created.");
-            }
-        } catch (error) {
-            console.log("Error initiating payment:", error);
-        }
-    }
 
+            const { data: data2 } = await api.post(
+              "http://localhost:8002/api/verifyPayment",
+              options2,
+              { withCredentials: true }
+            );
+            console.log('Payment Verification:', data2);
+          },
+        });
+
+        paymentObject.open();
+      } else {
+        console.log("Payment order not created.");
+      }
+    } catch (error) {
+      console.log("Error initiating payment:", error);
+    }
+  }
   const handleTakeTempDomain = async () => {
     const userEmail = JSON.parse(localStorage.getItem("user-info")).email; // Get the email from local storage
     if (!userEmail) {
@@ -98,17 +99,16 @@ const Home = () => {
     }
 
     try {
-      const response = await fetch(
+      const { data } = await api.post(
         "http://localhost:8002/take-domain-temporarily",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ domainName, userEmail }),
+          domainName,
+          userEmail,
+        },
+        {
+          withCredentials: true, // if you're using cookies
         }
       );
-      const data = await response.json();
       setResponseMessage(data); // Update the response message (or show the result below the button)
     } catch (error) {
       console.error("Error taking domain temporarily:", error);
@@ -127,14 +127,17 @@ const Home = () => {
     }
 
     try {
-      const response = await fetch("http://localhost:8002/check-domain", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+
+      const { data } = await api.post(
+        "http://localhost:8002/check-domain",
+        {
+          domainName,
+          userEmail,
         },
-        body: JSON.stringify({ domainName, userEmail }),
-      });
-      const data = await response.json();
+        {
+          withCredentials: true, // Include if using HttpOnly cookies
+        }
+      );
       setResponseMessage(data);
     } catch (error) {
       console.error("Error checking domain availability:", error);
@@ -152,25 +155,31 @@ const Home = () => {
     console.log(userEmail);
     setUserEmail(userEmail);
     // Fetch Buyed Domains
-    fetch(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`,{
-      headers: {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,  // pass JWT token here
-  },
-    })
-      .then((response) => response.json())
-      .then((data) => setBuyedDomains(data.names))
+    api
+      .get(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        withCredentials: true,
+      })
+      .then((response) => setBuyedDomains(response.data.names))
       .catch((err) => console.error("Error fetching Buyed Domains:", err));
-
     // Fetch Temporary Domains
-    fetch(
-      `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`
-    )
-      .then((response) => response.json())
-      .then((data) => setTemporaryDomains(data.currentDomains))
-      .catch((err) => console.error("Error fetching Temporary Domains:", err));
+    api
+      .get(
+        `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`,
+        {
+          withCredentials: true,
+        }
+      )
+      .then((response) => setTemporaryDomains(response.data.currentDomains))
+      .catch((err) =>
+        console.error("Error fetching Temporary Domains:", err)
+      );
+
   }, []);
-  const handleLogout = ()=>{
+  const handleLogout = () => {
     localStorage.removeItem('user-info');
     navigate('/login');
   }
@@ -294,7 +303,7 @@ const Home = () => {
             </p>
             {responseMessage.status === "taken-temporarily" && (
               <button
-                onClick={()=>onPayment(domainName,userEmail)}
+                onClick={() => onPayment(domainName, userEmail)}
                 style={{
                   padding: "10px",
                   backgroundColor: "#28a745",
@@ -311,7 +320,7 @@ const Home = () => {
             {responseMessage.status === "available" && (
               <div>
                 <button
-                    onClick={()=>onPayment(domainName,userEmail)}
+                  onClick={() => onPayment(domainName, userEmail)}
                   style={{
                     padding: "10px",
                     backgroundColor: "#28a745",
@@ -347,7 +356,7 @@ const Home = () => {
           style={{
             width: "100%",
             padding: "10px",
-            marginTop:"30px",
+            marginTop: "30px",
             backgroundColor: "#007BFF",
             color: "#fff",
             border: "none",
@@ -358,53 +367,53 @@ const Home = () => {
         >
           Log Out
         </button>
-<div style={{ marginTop: "20px", textAlign: "center" }}>
-  <button
-    onClick={() => navigate("/Status")}
-    style={{
-      padding: "10px",
-      backgroundColor: "#17a2b8",
-      color: "#fff",
-      border: "none",
-      borderRadius: "5px",
-      cursor: "pointer",
-      marginRight: "10px",
-    }}
-  >
-    checkStatus
-  </button>
-  <button
-    onClick={() => window.location.href = "http://localhost:3001/"}
-    style={{
-      padding: "10px",
-      backgroundColor: "#6f42c1",
-      color: "#fff",
-      border: "none",
-      borderRadius: "5px",
-      cursor: "pointer",
-    }}
-  >
-    ownEth
-  </button>
-</div>
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <button
+            onClick={() => navigate("/Status")}
+            style={{
+              padding: "10px",
+              backgroundColor: "#17a2b8",
+              color: "#fff",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+              marginRight: "10px",
+            }}
+          >
+            checkStatus
+          </button>
+          <button
+            onClick={() => window.location.href = "http://localhost:3001/"}
+            style={{
+              padding: "10px",
+              backgroundColor: "#6f42c1",
+              color: "#fff",
+              border: "none",
+              borderRadius: "5px",
+              cursor: "pointer",
+            }}
+          >
+            ownEth
+          </button>
+        </div>
 
       </div>
-      
-      
+
+
       <div style={{ flex: 1 }}></div>
       <button
-      onClick={handleNavigation}
-      style={{
-        padding: "5px",
-        backgroundColor: "#28a745",
-        color: "#fff",
-        border: "none",
-        borderRadius: "5px",
-        cursor: "pointer",
-      }}
-    >
-      Hoist Your Website
-    </button>
+        onClick={handleNavigation}
+        style={{
+          padding: "5px",
+          backgroundColor: "#28a745",
+          color: "#fff",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+        }}
+      >
+        Hoist Your Website
+      </button>
 
 
     </div>
