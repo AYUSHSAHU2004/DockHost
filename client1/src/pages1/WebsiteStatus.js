@@ -25,69 +25,36 @@ const Status = () => {
 
   // Fetch websites data
   const fetchWebsites = async () => {
-
-    const token = getToken();
-
     try {
-
       const { data } = await api.get(
         "http://localhost:8002/subscribe",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        }
+        { withCredentials: true } // cookie sent automatically, no headers needed
       );
-
       setWebsites(data.urls);
-
       setLoading(false);
       setLastUpdated(new Date());
-
     } catch (err) {
-
-
       console.log(err);
-
       setLoading(false);
       setError("Failed to fetch websites");
-
     }
-
   };
+
 
   // Add new website
   const handleAddWebsite = async (e) => {
-
     e.preventDefault();
-
-    const token = getToken();
-
     try {
-
       await api.post(
         "http://localhost:8002/subscribe",
-        {
-          url: urlInput,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          withCredentials: true,
-        }
+        { url: urlInput },
+        { withCredentials: true }
       );
-
       setUrlInput("");
-
       await fetchWebsites();
     } catch (err) {
-
       console.log(err);
-
     }
-
   };
 
   // Setup interval for periodic fetching

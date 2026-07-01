@@ -9,7 +9,7 @@ function generateAccessToken(user) {
         },
         process.env.JWT_SECRET,
         {
-            expiresIn: "1m"
+            expiresIn: "15m"
         }
     );
 
@@ -24,7 +24,7 @@ function generateRefreshToken(user) {
         },
         process.env.JWT_REFRESH_SECRET,
         {
-            expiresIn: "30d"
+            expiresIn: "1d"
         }
     );
 

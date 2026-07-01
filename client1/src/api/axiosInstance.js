@@ -2,87 +2,54 @@ import axios from "axios";
 
 const api = axios.create({
     baseURL: "http://localhost:8002",
-    withCredentials: true
+    withCredentials: true,
 });
 
-// Request Interceptor
-api.interceptors.request.use((config) => {
+let isRefreshing = false;
+let refreshSubscribers = [];
 
-    const userInfo = JSON.parse(
-        localStorage.getItem("user-info")
-    );
+function subscribeTokenRefresh(cb) {
+    refreshSubscribers.push(cb);
+}
 
-    if (userInfo?.token) {
+function onRefreshed() {
+    refreshSubscribers.forEach((cb) => cb());
+    refreshSubscribers = [];
+}
 
-        config.headers.Authorization =
-            `Bearer ${userInfo.token}`;
-
-    }
-
-    return config;
-
-});
-
-// Response Interceptor
 api.interceptors.response.use(
-
     (response) => response,
-
-    async (error) => {
-
+    (error) => {
         const originalRequest = error.config;
 
-        if (
-            error.response?.status === 401 &&
-            !originalRequest._retry
-        ) {
-
+        if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
-            try {
-
-                const { data } = await axios.post(
-                    "http://localhost:8002/refresh",
-                    {},
-                    {
-                        withCredentials: true
-                    }
-                );
-
-                console.log("Refresh endpoint called");
-
-                const userInfo = JSON.parse(
-                    localStorage.getItem("user-info")
-                );
-
-                userInfo.token = data.token;
-
-                localStorage.setItem(
-                    "user-info",
-                    JSON.stringify(userInfo)
-                );
-
-                originalRequest.headers.Authorization =
-                    `Bearer ${data.token}`;
-
-                return api(originalRequest);
-
-            } catch (err) {
-
-                localStorage.removeItem("user-info");
-
-                window.location.href = "/login";
-
-                return Promise.reject(err);
-
+            if (!isRefreshing) {
+                isRefreshing = true;
+                axios.post("http://localhost:8002/refresh", {}, { withCredentials: true })
+                    .then(() => {
+                        isRefreshing = false;
+                        onRefreshed();
+                    })
+                    .catch(() => {
+                        isRefreshing = false;
+                        refreshSubscribers = [];
+                        // ONLY redirect if not already on /login — this breaks the loop
+                        if (window.location.pathname !== "/login") {
+                            window.location.href = "/login";
+                        }
+                    });
             }
 
+            return new Promise((resolve) => {
+                subscribeTokenRefresh(() => {
+                    resolve(api(originalRequest));
+                });
+            });
         }
 
         return Promise.reject(error);
-
     }
-
 );
-
 export default api;

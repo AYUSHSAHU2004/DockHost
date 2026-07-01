@@ -6,7 +6,7 @@ let channel;
 async function connectRabbitMQ() {
     try {
 
-        connection = await amqp.connect("amqp://guest:guest@localhost:5672");
+        connection = await amqp.connect("amqp://myuser:mypassword@localhost:5672");
 
         channel = await connection.createChannel();
 

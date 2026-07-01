@@ -2,23 +2,19 @@ import { useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { googleAuth } from "./api";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "./AuthContext";
 
 const GoogleLogin = (props) => {
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
+    const { refetchUser } = useAuth(); // need to add this to context
 
     const responseGoogle = async (authResult) => {
         try {
             if (authResult["code"]) {
-                const result = await googleAuth(authResult.code);
-                const { email, name, image } = result.data.user;
-                const token = result.data.token;
-                const obj = { email, name, token, image };
-                localStorage.setItem("user-info", JSON.stringify(obj));
-                navigate("/");
-            } else {
-                console.log(authResult);
-                throw new Error(authResult);
+                await googleAuth(authResult.code);
+                await refetchUser(); // re-run /me NOW that cookies exist
+                navigate("/dashboard"); // go straight there
             }
         } catch (e) {
             console.log("Error while Google Login...", e);
@@ -32,7 +28,7 @@ const GoogleLogin = (props) => {
     });
 
     return (
-        <div 
+        <div
             style={{
                 display: "flex",
                 flexDirection: "column",

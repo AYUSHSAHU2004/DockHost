@@ -3,11 +3,14 @@ require("./config/db").connect();
 
 const express = require('express');
 const { exec } = require('child_process');
+const cookieParser = require("cookie-parser");
+
 // import prismaClient  from "../packages/db/src/index.js";
 const { startConsumer } = require("./rabbitmq/consumer");
 const { prismaClient } = require("../packages/db/src/index.js");
-const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const auth = require("./middleware/auth");
+
 const bodyParser = require('body-parser');
 const BuyedDomain = require("./models/BuyedDomain");
 const Domain = require('./models/DomainInfo');
@@ -22,6 +25,10 @@ const app = express();
 const http = require("http");
 const server = http.createServer(app);
 app.use(cookieParser());
+app.use((req, res, next) => {
+    console.log(`[REQ] ${req.method} ${req.originalUrl} | cookies:`, Object.keys(req.cookies || {}));
+    next();
+});
 const { Server } = require("socket.io");
 const router = require("./routes/payement-routes");
 const authRoutes = require('./routes/authRoutes');
@@ -30,6 +37,7 @@ const refreshRoutes = require("./routes/refreshRoutes");
 const registerSocket = require("./socket/socketHandler");
 
 app.use(express.json());
+
 app.use(cors({
     origin: "http://localhost:3000",
     credentials: true
@@ -144,254 +152,118 @@ app.post('/buy-domain', async (req, res) => {
     }
 });
 
-app.get("/api/v1/websites", async (req, res) => {
-    console.log("=== START /api/v1/websites REQUEST ===");
-    console.log("Headers:", req.headers);
-
+app.get("/api/v1/websites", auth, async (req, res) => {
     try {
-        // 1️⃣ Get Authorization header
-        const authHeader = req.headers["authorization"];
-        if (!authHeader) {
-            console.log("❌ Authorization header missing");
-            return res.status(401).json({ message: "Authorization header missing" });
-        }
+        const userId = req.user.email; // req.user comes from auth middleware now
 
-        // 2️⃣ Extract token
-        const token = authHeader.split(" ")[1];
-        if (!token) {
-            console.log("❌ Token missing");
-            return res.status(401).json({ message: "Token missing" });
-        }
-
-        // 3️⃣ Verify token
-        let decoded;
-
-        try {
-            console.log("sk: ", secretKey);
-            decoded = jwt.verify(token, secretKey);
-            console.log("✅ Decoded token:", decoded);
-        } catch (err) {
-            console.log("❌ Token verification failed:", err.message);
-            return res.status(401).json({ message: "Invalid or expired token" });
-        }
-
-        // 4️⃣ Extract userId from decoded payload
-        const userId = decoded.email;
         if (!userId) {
-            console.log("❌ userId not found in token");
             return res.status(400).json({ message: "userId not found in token" });
         }
-        console.log("userId : ", userId);
 
-        // 5️⃣ Fetch websites for that user
         const websites = await prismaClient.website.findMany({
-            where: {
-                userId,
-                disabled: false,
-            },
-            include: {
-                ticks: true,
-            },
+            where: { userId, disabled: false },
+            include: { ticks: true },
         });
 
-        console.log("✅ Found websites:", websites?.length);
-
-        // 6️⃣ Return response
         res.json({ websites });
     } catch (error) {
-        console.error("❌ Unexpected Error:", error);
+        console.error("Unexpected Error:", error);
         res.status(500).json({ message: "Internal server error" });
-    } finally {
-        console.log("=== END REQUEST ===\n");
     }
 });
 
-app.get("/api/v1/website", async (req, res) => {
-    const { userId } = req.body;
-
-    const websites = await prismaClient.website.findMany({
-        where: {
-            userId,
-            disabled: false
-        },
-        include: {
-            ticks: true
-        }
-    });
-
-    res.json({
-        websites
-    });
-});
 
 // Get all current domains by email
-app.get('/get-current-domains-by-email', async (req, res) => {
-    const { email } = req.query; // Extract email from query parameters
-
-    if (!email) {
-        return res.status(400).json({ message: 'Email is required.' });
-    }
+app.get('/get-current-domains-by-email', auth, async (req, res) => {
+    const email = req.user.email; // use authenticated user's email, ignore query param
 
     try {
-        // Step 1: Fetch all `name` fields from the BuyedDomain model
         const buyedDomains = await BuyedDomain.find({}, 'name');
         const buyedDomainNames = buyedDomains.map(domain => domain.name);
 
-        // Step 2: Find all `currentDomain` fields in the Domain model for the given email
-        // that are not in the buyedDomainNames array
         const domains = await Domain.find(
             { email, currentDomain: { $nin: buyedDomainNames } },
-            'currentDomain' // Fetch only the currentDomain field
+            'currentDomain'
         );
 
         if (!domains || domains.length === 0) {
-            return res.status(404).json({
-                message: 'No domains found for the given email.',
-            });
+            return res.status(404).json({ message: 'No domains found for the given email.' });
         }
 
-        // Step 3: Map the currentDomain values
         const currentDomains = domains.map(domain => domain.currentDomain);
-
-        return res.status(200).json({
-            status: 'success',
-            currentDomains,
-        });
+        return res.status(200).json({ status: 'success', currentDomains });
     } catch (error) {
         console.error('Error fetching current domains by email:', error);
-        return res.status(500).json({
-            message: 'Internal server error.',
-        });
+        return res.status(500).json({ message: 'Internal server error.' });
     }
 });
 
+app.get("/me", auth, (req, res) => {
+    res.json({ user: req.user });
+});
+
+app.post("/logout", (req, res) => {
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    res.json({ message: "Logged out" });
+});
 
 
-app.get('/get-Bdomains-by-email', async (req, res) => {
-    console.log("=== START REQUEST ===");
-    console.log("1. Query params:", req.query);
-    console.log("2. Headers:", req.headers);
+app.get('/get-Bdomains-by-email', auth, async (req, res) => {
+    const email = req.user.email; // from auth middleware, not query param
 
     try {
-        // 1. Get token from Authorization header
-        const authHeader = req.headers['authorization'];
-        console.log("3. Authorization header:", authHeader);
-
-        if (!authHeader) {
-            console.log("4. ERROR: Authorization header missing");
-            return res.status(401).json({ message: 'Authorization header missing' });
-        }
-
-        const token = authHeader.split(' ')[1];
-        console.log("5. Extracted token:", token);
-
-        if (!token) {
-            console.log("6. ERROR: Token missing after split");
-            return res.status(401).json({ message: 'Token missing' });
-        }
-
-        // 2. Verify token and decode payload
-        let decoded;
-        try {
-            decoded = jwt.verify(token, secretKey);
-            console.log("7. Decoded token payload:", decoded);
-        } catch (err) {
-            console.log("8. ERROR: Token verification failed:", err.message);
-            return res.status(401).json({ message: 'Invalid or expired token' });
-        }
-
-        // 3. Extract email from token payload
-        const email = decoded.email;
-        console.log("9. Email from decoded token:", email);
-
-        if (!email) {
-            console.log("10. ERROR: Email not found in token payload");
-            return res.status(400).json({ message: 'Email not found in token' });
-        }
-
-        // 4. Query database with this email
-        console.log("11. Querying database for email:", email);
         const domains = await BuyedDomain.find({ email });
-        console.log("12. Domains found in database:", domains);
-        console.log("13. Number of domains:", domains ? domains.length : 0);
 
         if (!domains || domains.length === 0) {
-            return res.status(200).json({
-                status: "success",
-                names: []
-            });
+            return res.status(200).json({ status: "success", names: [] });
         }
 
-        // 5. Respond with domain names
         const domainNames = domains.map(domain => domain.name);
-        console.log("15. Domain names to return:", domainNames);
-
-        console.log("16. Sending success response");
         return res.status(200).json({ status: 'success', names: domainNames });
-
     } catch (error) {
-        console.error('17. CATCH BLOCK ERROR:', error);
-        console.error('Error stack:', error.stack);
+        console.error('Error:', error);
         return res.status(500).json({ message: 'Internal server error' });
-    } finally {
-        console.log("=== END REQUEST ===\n");
     }
 });
 
 
-// Take a domain temporarily
-app.post('/take-domain-temporarily', async (req, res) => {
-    const { domainName, userEmail } = req.body;
+app.post('/take-domain-temporarily', auth, async (req, res) => {
+    const { domainName } = req.body;
+    const userEmail = req.user.email; // trust token, not body
 
-    if (!domainName || !userEmail) {
-        return res.status(400).json({ message: 'Domain name and user email are required.' });
+    if (!domainName) {
+        return res.status(400).json({ message: 'Domain name is required.' });
     }
 
     try {
-        // Step 1: Check if the domain is already bought
         const buyedDomain = await BuyedDomain.findOne({ name: domainName });
         if (buyedDomain) {
-            return res.status(400).json({
-                status: 'unavailable',
-                message: 'The Subdomain is already bought by someone else.',
-            });
+            return res.status(400).json({ status: 'unavailable', message: 'The Subdomain is already bought by someone else.' });
         }
 
-        // Step 2: Check if the domain is already taken temporarily
         const domainInfo = await Domain.findOne({ currentDomain: domainName });
         if (domainInfo) {
-            return res.status(400).json({
-                status: 'taken',
-                message: 'The Subdomain is already taken temporarily.',
-            });
+            return res.status(400).json({ status: 'taken', message: 'The Subdomain is already taken temporarily.' });
         }
 
-        // Step 3: Insert the domain as temporary in the Domain model
-        const newDomain = new Domain({
-            email: userEmail,
-            permanentDomain: domainName,
-            currentDomain: domainName,
-        });
+        const newDomain = new Domain({ email: userEmail, permanentDomain: domainName, currentDomain: domainName });
         await newDomain.save();
 
-        return res.status(200).json({
-            status: 'success',
-            message: 'SubDomain successfully taken temporarily!',
-        });
+        return res.status(200).json({ status: 'success', message: 'SubDomain successfully taken temporarily!' });
     } catch (error) {
         console.error('Error taking domain temporarily:', error);
         return res.status(500).json({ message: 'Internal server error.' });
     }
 });
 
-
-app.post('/check-domain', async (req, res) => {
+app.post('/check-domain', auth, async (req, res) => {
     console.log('Request received at /check-domain', req.body);
-    const { domainName, userEmail } = req.body;
+    const { domainName } = req.body;
 
-    if (!domainName || !userEmail) {
+    if (!domainName) {
         console.log('Missing parameters in request body');
-        return res.status(400).json({ message: 'Domain name and user email are required.' });
+        return res.status(400).json({ message: 'Domain name required.' });
     }
 
     try {

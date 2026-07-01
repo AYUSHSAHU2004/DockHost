@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../AuthContext";
+
 import api from "../api/axiosInstance";
 
 
@@ -11,6 +13,8 @@ const Home = () => {
   const [responseMessage, setResponseMessage] = useState(null);
 
   const navigate = useNavigate();
+
+  const { user } = useAuth();
 
   const handleNavigation = () => {
     navigate("/deploy");
@@ -92,97 +96,56 @@ const Home = () => {
     }
   }
   const handleTakeTempDomain = async () => {
-    const userEmail = JSON.parse(localStorage.getItem("user-info")).email; // Get the email from local storage
     if (!userEmail) {
-      alert("User email not found in localStorage. Please log in first.");
+      alert("Not logged in.");
       return;
     }
-
     try {
-      const { data } = await api.post(
-        "http://localhost:8002/take-domain-temporarily",
-        {
-          domainName,
-          userEmail,
-        },
-        {
-          withCredentials: true, // if you're using cookies
-        }
-      );
-      setResponseMessage(data); // Update the response message (or show the result below the button)
+      const { data } = await api.post("http://localhost:8002/take-domain-temporarily", { domainName }, { withCredentials: true });
+
+      setResponseMessage(data);
     } catch (error) {
       console.error("Error taking domain temporarily:", error);
-      setResponseMessage({
-        status: "error",
-        message: "Failed to take domain temporarily.",
-      });
+      setResponseMessage({ status: "error", message: "Failed to take domain temporarily." });
     }
   };
 
   const handleCheckAvailability = async () => {
-    const userEmail = JSON.parse(localStorage.getItem("user-info")).email; // Get the email from local storage
     if (!userEmail) {
-      alert("User email not found in localStorage. Please log in first.");
+      alert("Not logged in.");
       return;
     }
-
     try {
+      const { data } = await api.post("http://localhost:8002/check-domain", { domainName }, { withCredentials: true });
 
-      const { data } = await api.post(
-        "http://localhost:8002/check-domain",
-        {
-          domainName,
-          userEmail,
-        },
-        {
-          withCredentials: true, // Include if using HttpOnly cookies
-        }
-      );
       setResponseMessage(data);
     } catch (error) {
       console.error("Error checking domain availability:", error);
-      setResponseMessage({
-        status: "error",
-        message: "Failed to check availability.",
-      });
+      setResponseMessage({ status: "error", message: "Failed to check availability." });
     }
   };
 
   useEffect(() => {
-    // Get user_email from localStorage
-    const userEmail = JSON.parse(localStorage.getItem("user-info")).email;
-    const token = JSON.parse(localStorage.getItem("user-info")).token;
-    console.log(userEmail);
-    setUserEmail(userEmail);
-    // Fetch Buyed Domains
-    api
-      .get(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        withCredentials: true,
-      })
+    if (!user) return;
+    const email = user.email;
+    setUserEmail(email);
+
+    api.get(`http://localhost:8002/get-Bdomains-by-email`, { withCredentials: true })
       .then((response) => setBuyedDomains(response.data.names))
       .catch((err) => console.error("Error fetching Buyed Domains:", err));
-    // Fetch Temporary Domains
-    api
-      .get(
-        `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`,
-        {
-          withCredentials: true,
-        }
-      )
-      .then((response) => setTemporaryDomains(response.data.currentDomains))
-      .catch((err) =>
-        console.error("Error fetching Temporary Domains:", err)
-      );
 
-  }, []);
-  const handleLogout = () => {
-    localStorage.removeItem('user-info');
+    api.get(`http://localhost:8002/get-current-domains-by-email`, { withCredentials: true })
+      .then((response) => setTemporaryDomains(response.data.currentDomains))
+      .catch((err) => console.error("Error fetching Temporary Domains:", err));
+  }, [user]);
+  const handleLogout = async () => {
+    try {
+      await api.post("http://localhost:8002/logout", {}, { withCredentials: true });
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
     navigate('/login');
-  }
+  };
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>

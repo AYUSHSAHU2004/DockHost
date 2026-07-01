@@ -9,6 +9,8 @@ import RefrshHandler from './RefreshHandler';
 import GoogleLogin from './GoogleLogin';
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./AuthContext";
+
 
 
 
@@ -41,23 +43,35 @@ function App() {
       <GoogleLogin></GoogleLogin>
     </GoogleOAuthProvider>
   )
-  const PrivateRoute = ({ element }) => {
-    return isAuthenticated ? element : <Navigate to="/login" />
+
+  function PrivateRoute({ element }) {
+    const { user, loading } = useAuth();
+    if (loading) return <div>Loading...</div>;
+    return user ? element : <Navigate to="/login" replace />;
   }
+
+  function HomeRedirect() {
+    const { user, loading } = useAuth();
+    if (loading) return <div>Loading...</div>;
+    return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+  }
+
 
   return (
     <div style={appStyle}>
       <div style={mainStyle}>
-        <BrowserRouter>
-          <RefrshHandler setIsAuthenticated={setIsAuthenticated} />
-          <Routes>
-            <Route path="/login" element={<GoogleWrapper />} />
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/dashboard" element={<Home />} />
-            <Route path="/Status" element={<Status />} />
-            <Route path="/deploy" element={<Deploy />} />
-          </Routes>
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<GoogleWrapper />} />
+              <Route path="/" element={<HomeRedirect />} />
+              <Route path="/dashboard" element={<PrivateRoute element={<Home />} />} />
+              <Route path="/Status" element={<PrivateRoute element={<Status />} />} />
+              <Route path="/deploy" element={<PrivateRoute element={<Deploy />} />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+
       </div>
       <Footer />
     </div>

@@ -1,40 +1,23 @@
 const jwt = require("jsonwebtoken");
 
 function auth(req, res, next) {
-
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-        return res.status(401).json({
-            message: "Authorization header missing"
-        });
-    }
-
-    const token = authHeader.split(" ")[1];
+    const token = req.cookies.accessToken;
+    console.log("[AUTH] Cookies received:", req.cookies);
+    console.log("[AUTH] accessToken present?", !!token);
 
     if (!token) {
-        return res.status(401).json({
-            message: "Token missing"
-        });
+        console.log("[AUTH] No token — rejecting");
+        return res.status(401).json({ message: "No token provided" });
     }
 
     try {
-
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET
-        );
-
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log("[AUTH] Token valid, user:", decoded.email);
         req.user = decoded;
-
         next();
-
     } catch (err) {
-
-        return res.status(401).json({
-            message: "Invalid token"
-        });
-
+        console.log("[AUTH] Token verify FAILED:", err.message); // <-- this tells you WHY (expired vs malformed vs wrong secret)
+        return res.status(401).json({ message: "Invalid or expired token" });
     }
 }
 

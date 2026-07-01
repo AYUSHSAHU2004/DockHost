@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosInstance";
+import { useAuth } from "../AuthContext";
+
 
 const Deploy = () => {
   const navigate = useNavigate();
   const [buyedDomains, setBuyedDomains] = useState([]);
   const [temporaryDomains, setTemporaryDomains] = useState([]);
   const [userEmail, setUserEmail] = useState("");
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState({
     githubUrl: "",
     buildCommand: "",
@@ -88,40 +92,18 @@ const Deploy = () => {
   };
 
   useEffect(() => {
-    // Get user_email from localStorage
-    const userEmail = JSON.parse(localStorage.getItem("user-info")).email;
-    const token = JSON.parse(localStorage.getItem("user-info")).token;
+    if (!user) return;
+    const email = user.email;
+    setUserEmail(email);
 
-    setUserEmail(userEmail);
-    console.log(token);
-    // Fetch Buyed Domains
-    api
-      .get(`http://localhost:8002/get-Bdomains-by-email?email=${userEmail}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        withCredentials: true,
-      })
-      .then((response) => {
-        setBuyedDomains(response.data.names);
-        setFormData(prev => ({ ...prev, domainName: response.data.names[0] })); // add this
-      })
+    api.get(`http://localhost:8002/get-Bdomains-by-email`, { withCredentials: true })
+      .then((response) => setBuyedDomains(response.data.names))
       .catch((err) => console.error("Error fetching Buyed Domains:", err));
 
-    // Fetch Temporary Domains
-    api
-      .get(
-        `http://localhost:8002/get-current-domains-by-email?email=${userEmail}`,
-        {
-          withCredentials: true,
-        }
-      )
+    api.get(`http://localhost:8002/get-current-domains-by-email`, { withCredentials: true })
       .then((response) => setTemporaryDomains(response.data.currentDomains))
-      .catch((err) =>
-        console.error("Error fetching Temporary Domains:", err)
-      );
-  }, []);
+      .catch((err) => console.error("Error fetching Temporary Domains:", err));
+  }, [user]);
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>

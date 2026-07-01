@@ -16,44 +16,29 @@ exports.googleAuth = async (req, res, next) => {
             `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${googleRes.tokens.access_token}`
         );
         const { email, name, picture } = userRes.data;
-        // console.log(userRes);
         let user = await User.findOne({ email });
 
         if (!user) {
-            user = await User.create({
-                name,
-                email,
-                image: picture,
-            });
+            user = await User.create({ name, email, image: picture });
         }
-        const accessToken =
-            generateAccessToken(user);
 
-        const refreshToken =
-            generateRefreshToken(user);
+        const accessToken = generateAccessToken(user);
+        const refreshToken = generateRefreshToken(user);
 
+        // ACCESS TOKEN — now a cookie too, not in body
 
-        res.cookie(
-            "refreshToken",
-            refreshToken,
-            {
-                httpOnly: true,
-                secure: false,      // true after HTTPS deployment
-                sameSite: "lax",
-                maxAge: 30 * 24 * 60 * 60 * 1000
-            }
-        );
+        res.cookie("accessToken", accessToken, { httpOnly: true, secure: false, sameSite: "lax", maxAge: 15 * 60 * 1000 });
+        res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: false, sameSite: "lax", maxAge: 30 * 24 * 60 * 60 * 1000 });
+        console.log("[GOOGLE AUTH] Cookies set for user:", email);
+
+        // no token in body anymore — frontend doesn't need it
         res.status(200).json({
             message: "success",
-            token: accessToken,
-            user
+            user,
         });
     } catch (err) {
         console.error("Google Auth Error:", err);
         console.error(err.response?.data);
-
-        res.status(500).json({
-            message: "Internal Server Error"
-        });
+        res.status(500).json({ message: "Internal Server Error" });
     }
 };
