@@ -8,8 +8,10 @@
 | :--- | :--- |
 | **Backend Frameworks** | Spring Boot, Node.js |
 | **Frontend** | React.js, Tailwind CSS |
-| **DevOps & Containers** | Docker |
+| **DevOps & Containers** | Jenkins, Docker, SonarQube, OWASP Dependency-Check |
 | **Cloud Storage** | Amazon S3 |
+| **Build Tools** | Maven |
+| **Container Registry** | Docker Hub |
 | **Database** | MongoDb|
 | **Message Broker** | RabbitMQ |
 | **Payment Gateway** | Razorpay |
@@ -85,5 +87,6 @@
    ![bl](./assets/nc.png)
   
   
-
+* **Frontend gets updated through socket and not by polling**
   
+  ![bl](./assets/cwf.png)
